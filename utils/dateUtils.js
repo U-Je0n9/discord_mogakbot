@@ -1,32 +1,40 @@
 const { timeZone } = require('../config');
 
-/**
- * 한국 시간 기준으로 현재 날짜를 YYYY-MM-DD 형식으로 반환
- */
-function getKoreaDate(date = new Date()) {
+function getKoreaParts(date = new Date()) {
   const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timeZone,
+    timeZone,
     year: 'numeric',
     month: '2-digit',
-    day: '2-digit'
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
   });
-  
+
   const parts = formatter.formatToParts(date);
-  const year = parts.find(p => p.type === 'year').value;
-  const month = parts.find(p => p.type === 'month').value;
-  const day = parts.find(p => p.type === 'day').value;
-  
-  return `${year}-${month}-${day}`;
+  const lookup = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  return {
+    year: Number(lookup.year),
+    month: Number(lookup.month),
+    day: Number(lookup.day),
+    hour: Number(lookup.hour),
+    minute: Number(lookup.minute),
+    second: Number(lookup.second)
+  };
+}
+
+function getKoreaDate(date = new Date()) {
+  const { year, month, day } = getKoreaParts(date);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 /**
  * 한국 시간 기준으로 현재 시간 정보 반환
  */
 function getKoreaDateTime(date = new Date()) {
-  // UTC 시간을 한국 시간으로 변환
-  const koreaOffset = 9 * 60; // 한국은 UTC+9
-  const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
-  return new Date(utc + (koreaOffset * 60000));
+  const { year, month, day, hour, minute, second } = getKoreaParts(date);
+  return new Date(Date.UTC(year, month - 1, day, hour, minute, second));
 }
 
 /**
@@ -41,8 +49,8 @@ function getTimeSlot(hours, minutes) {
  * 한국 시간 기준으로 현재 시간 슬롯 인덱스 반환
  */
 function getCurrentTimeSlot(date = new Date()) {
-  const koreaTime = getKoreaDateTime(date);
-  return getTimeSlot(koreaTime.getHours(), koreaTime.getMinutes());
+  const { hour, minute } = getKoreaParts(date);
+  return getTimeSlot(hour, minute);
 }
 
 /**
@@ -101,7 +109,7 @@ function formatMinutes(minutes) {
 
 function formatKoreaDateTime(date = new Date(), options = {}) {
   const formatter = new Intl.DateTimeFormat('ko-KR', {
-    timeZone: timeZone,
+    timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
