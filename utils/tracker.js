@@ -30,7 +30,7 @@ class VoiceTracker {
       slotStartTime: now
     });
 
-    console.log(`[Voice Join] ${member.user.tag} (${userId}) joined channel ${channel.name} at slot ${currentSlot}`);
+    console.log(`[Voice Join] ${member.user.tag} (${userId}) joined channel ${channel.name} at slot ${currentSlot} (${koreaTime.toISOString()})`);
   }
 
   /**
@@ -51,6 +51,7 @@ class VoiceTracker {
     if (userData.currentSlot === leaveSlot) {
       // 같은 슬롯 내에서 나간 경우
       const slotDuration = Math.floor((now - userData.slotStartTime) / 1000 / 60);
+      console.log(`[Voice Leave] ${member.user.tag} (${userId}) left in same slot ${leaveSlot}, duration: ${slotDuration} minutes`);
       if (slotDuration > 0) {
         const slotKoreaDate = getKoreaDate(new Date(userData.slotStartTime));
         await database.recordTimeSlot(
@@ -60,6 +61,7 @@ class VoiceTracker {
           leaveSlot,
           slotDuration
         );
+        console.log(`[Time Slot Recorded] User: ${userId}, Date: ${slotKoreaDate}, Slot: ${leaveSlot}, Minutes: ${slotDuration}`);
       }
     } else {
       // 슬롯이 다른 경우: 중간 슬롯들도 처리
@@ -80,10 +82,12 @@ class VoiceTracker {
           userData.currentSlot,
           prevSlotDuration
         );
+        console.log(`[Time Slot Recorded] User: ${userId}, Date: ${prevSlotKoreaDate}, Slot: ${userData.currentSlot}, Minutes: ${prevSlotDuration}`);
       }
 
       // 현재 슬롯 기록 (부분 참여)
       const currentSlotDuration = Math.max(0, Math.floor((now - prevSlotEnd) / 1000 / 60));
+      console.log(`[Voice Leave] ${member.user.tag} (${userId}) left across slots: ${userData.currentSlot} -> ${leaveSlot}, prev: ${prevSlotDuration}min, current: ${currentSlotDuration}min`);
       if (currentSlotDuration > 0) {
         await database.recordTimeSlot(
           userId,
@@ -92,6 +96,7 @@ class VoiceTracker {
           leaveSlot,
           currentSlotDuration
         );
+        console.log(`[Time Slot Recorded] User: ${userId}, Date: ${leaveKoreaDate}, Slot: ${leaveSlot}, Minutes: ${currentSlotDuration}`);
       }
     }
 
@@ -160,6 +165,7 @@ class VoiceTracker {
               userData.currentSlot,
               slotDuration
             );
+            console.log(`[Slot Update] User: ${userId} slot changed ${userData.currentSlot} -> ${currentSlot}, recorded ${slotDuration} minutes for slot ${userData.currentSlot}`);
           }
 
           // 새 슬롯 시작

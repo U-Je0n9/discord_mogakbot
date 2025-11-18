@@ -71,11 +71,35 @@ TIMEZONE=Asia/Seoul
 
 ### 데이터 저장
 - JSON 파일은 Railway의 임시 파일 시스템에 저장됩니다
-- Railway는 재시작 시 파일이 사라질 수 있으므로, 실제 운영 시에는 데이터베이스 서비스(PostgreSQL 등)를 추가하는 것을 권장합니다
+- ⚠️ **중요**: Railway는 재배포 시 파일이 사라질 수 있으므로, 참여 기록을 유지하려면 영구 저장소가 필요합니다
+- **해결 방법**: 
+  1. **Railway Volumes** 사용 (가장 간단, 5분 소요) - 자세한 내용은 `RAILWAY_DATA_PERSISTENCE.md` 참고
+  2. **Railway PostgreSQL** 사용 (더 안정적, 설정 필요)
+- 자세한 내용은 `RAILWAY_DATA_PERSISTENCE.md` 파일 참고
 
 ### 재배포
+
+**자동 재배포:**
 - GitHub에 코드를 푸시하면 자동으로 재배포됩니다
 - Railway는 자동으로 최신 코드를 감지하여 재배포합니다
+
+**수동 재배포 방법:**
+
+1. **Deployments 탭에서 재배포:**
+   - Railway 대시보드에서 프로젝트 선택
+   - **Deployments** 탭 클릭
+   - 재배포하고 싶은 배포 기록에서 **"..." (점 3개)** 메뉴 클릭
+   - **"Redeploy"** 선택
+   - 또는 최신 배포 기록의 우측에 **"Redeploy"** 버튼이 있을 수 있음
+
+2. **Settings에서 재배포:**
+   - Railway 대시보드에서 프로젝트 선택
+   - **Settings** 탭 클릭
+   - 하단에 **"Redeploy"** 또는 **"Redeploy Latest"** 버튼 클릭
+
+3. **변경사항 푸시 없이 재배포:**
+   - GitHub에 변경사항을 푸시하지 않고도 같은 코드로 재배포 가능
+   - 단순히 배포를 다시 시작하고 싶을 때 사용
 
 ## 문제 해결
 
