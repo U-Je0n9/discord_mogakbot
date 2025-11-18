@@ -54,7 +54,10 @@ module.exports = {
           userMap.set(record.user_id, new Array(48).fill(false)); // 48개 슬롯 (24시간 / 30분)
         }
         const slots = userMap.get(record.user_id);
-        slots[record.time_slot] = record.is_present === 1;
+        // 같은 슬롯에 여러 레코드가 있을 수 있으므로, 하나라도 is_present === 1이면 O
+        if (record.is_present === 1) {
+          slots[record.time_slot] = true;
+        }
       }
 
       // 메시지 생성

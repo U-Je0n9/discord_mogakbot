@@ -96,11 +96,12 @@ class StudyDatabase {
       ts => ts.user_id === userId && ts.date === date && ts.time_slot === timeSlot && ts.guild_id === guildId
     );
 
-    const isPresent = minutes >= 20 ? 1 : 0;
+    // 각 슬롯은 최대 30분까지만 인정
+    const effectiveMinutes = Math.max(0, Math.min(30, minutes));
 
     if (existingIndex >= 0) {
       const existing = timeSlots[existingIndex];
-      const newMinutes = existing.minutes_present + minutes;
+      const newMinutes = Math.min(30, (existing.minutes_present || 0) + effectiveMinutes);
       timeSlots[existingIndex] = {
         ...existing,
         minutes_present: newMinutes,
@@ -113,8 +114,8 @@ class StudyDatabase {
         guild_id: guildId,
         date: date,
         time_slot: timeSlot,
-        minutes_present: minutes,
-        is_present: isPresent
+        minutes_present: effectiveMinutes,
+        is_present: effectiveMinutes >= 20 ? 1 : 0
       });
     }
 
