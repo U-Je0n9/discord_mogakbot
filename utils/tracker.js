@@ -15,8 +15,7 @@ class VoiceTracker {
     const channelId = channel.id;
     const now = Date.now();
     const koreaDate = getKoreaDate();
-    const koreaTime = getKoreaDateTime();
-    const currentSlot = getCurrentTimeSlot(koreaTime);
+    const currentSlot = getCurrentTimeSlot(new Date(now));
 
     // 세션 시작
     await database.startSession(userId, guildId, channelId, now, koreaDate);
@@ -43,8 +42,9 @@ class VoiceTracker {
     if (!userData) return;
 
     const now = Date.now();
-    const koreaTime = getKoreaDateTime(new Date(now));
-    const leaveSlot = getCurrentTimeSlot(koreaTime);
+    const baseDate = new Date(now);
+    const koreaTime = getKoreaDateTime(baseDate);
+    const leaveSlot = getCurrentTimeSlot(baseDate);
     const leaveKoreaDate = getKoreaDate(new Date(now));
 
     // 마지막 슬롯 기록
@@ -135,8 +135,9 @@ class VoiceTracker {
    */
   async updateTimeSlots() {
     const now = Date.now();
-    const koreaTime = getKoreaDateTime();
-    const currentSlot = getCurrentTimeSlot(koreaTime);
+    const baseDate = new Date(now);
+    const koreaTime = getKoreaDateTime(baseDate);
+    const currentSlot = getCurrentTimeSlot(baseDate);
     const currentKoreaDate = getKoreaDate();
 
     for (const [userId, userData] of this.activeUsers.entries()) {
