@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const database = require('../database');
 const { getKoreaDate, timeSlotToTimeString } = require('../utils/dateUtils');
 const config = require('../config');
@@ -23,7 +23,7 @@ module.exports = {
     if (!hasAdminRole && !isAdmin) {
       return interaction.reply({
         content: '❌ 이 명령어는 운영자만 사용할 수 있습니다.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
 
@@ -39,9 +39,9 @@ module.exports = {
         });
       }
 
-      const participation = database.getDateParticipation(dateInput, interaction.guild.id);
+      const participation = await database.getDateParticipation(dateInput, interaction.guild.id);
 
-      if (participation.length === 0) {
+      if (!participation || participation.length === 0) {
         return interaction.editReply({
           content: `📅 **${dateInput}**의 참여 데이터가 없습니다.`
         });

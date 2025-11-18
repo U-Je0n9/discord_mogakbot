@@ -51,9 +51,9 @@ module.exports = {
           });
       }
 
-      const leaderboard = database.getAttendanceLeaderboard(guildId, startDate, endDate, limit);
+      const leaderboard = await database.getAttendanceLeaderboard(guildId, startDate, endDate, limit);
 
-      if (leaderboard.length === 0) {
+      if (!leaderboard || leaderboard.length === 0) {
         return interaction.editReply({
           content: `📊 **${periodName} 출석 리더보드**\n\n데이터가 없습니다.`
         });

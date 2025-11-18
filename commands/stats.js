@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const database = require('../database');
 const { 
   getKoreaDate, 
@@ -24,7 +24,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
       const userId = interaction.user.id;
@@ -62,8 +62,8 @@ module.exports = {
       }
 
       // 통계 조회
-      const stats = database.getUserStats(userId, guildId, startDate, endDate);
-      const attendanceDates = database.getUserAttendanceDates(userId, guildId, startDate, endDate);
+      const stats = await database.getUserStats(userId, guildId, startDate, endDate);
+      const attendanceDates = await database.getUserAttendanceDates(userId, guildId, startDate, endDate);
 
       const totalHours = stats?.total_hours || 0;
       const totalMinutes = Math.floor(totalHours * 60);
