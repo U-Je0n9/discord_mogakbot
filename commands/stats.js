@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const database = require('../database');
+const voiceTracker = require('../utils/tracker');
 const { 
   getKoreaDate, 
   getWeekStartDate, 
@@ -65,12 +66,29 @@ module.exports = {
       const stats = await database.getUserStats(userId, guildId, startDate, endDate);
       const attendanceDates = await database.getUserAttendanceDates(userId, guildId, startDate, endDate);
 
-      const totalMinutes = stats?.total_minutes || 0;
+      let totalMinutes = stats?.total_minutes || 0;
       const attendanceDays = attendanceDates?.length || 0;
+
+      // 현재 진행 중인 세션의 시간을 실시간으로 반영
+      let liveBonusMinutes = 0;
+      const todayDateStr = getKoreaDate();
+      const periodIncludesToday = startDate <= todayDateStr && endDate >= todayDateStr;
+      const activeSession = voiceTracker.activeUsers.get(userId);
+
+      if (periodIncludesToday && activeSession && activeSession.guildId === guildId) {
+        const now = Date.now();
+        const currentMinutes = Math.max(0, Math.floor((now - activeSession.slotStartTime) / 1000 / 60));
+        liveBonusMinutes = Math.min(30, currentMinutes);
+        totalMinutes += liveBonusMinutes;
+      }
 
       // 메시지 생성
       let message = `📊 **${periodName} 통계**\n\n`;
-      message += `⏱️ **참여 시간**: ${formatMinutes(totalMinutes)}\n`;
+      message += `⏱️ **참여 시간**: ${formatMinutes(totalMinutes)}`;
+      if (liveBonusMinutes > 0) {
+        message += ` (진행 중 +${liveBonusMinutes}분 포함)`;
+      }
+      message += `\n`;
       
       if (period === 'month' || period === 'all') {
         message += `📅 **출석일수**: ${attendanceDays}일\n`;
