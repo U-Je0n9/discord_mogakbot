@@ -1,0 +1,25 @@
+{
+  "name": "discord-study-bot",
+  "version": "1.0.0",
+  "description": "모각공 참여 관리 디스코드 봇",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "study",
+    "모각공"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1"
+  }
+}
