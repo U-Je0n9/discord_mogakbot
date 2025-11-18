@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Events, MessageFlags } = require('discord.js');
 const config = require('./config');
 const voiceTracker = require('./utils/tracker');
 const fs = require('fs');
@@ -36,7 +36,11 @@ client.once(Events.ClientReady, () => {
   
   // 시간 슬롯 업데이트를 위한 정기 실행 (1분마다)
   setInterval(async () => {
-    await voiceTracker.updateTimeSlots();
+    try {
+      await voiceTracker.updateTimeSlots();
+    } catch (error) {
+      console.error('Error updating time slots:', error);
+    }
   }, 60000); // 1분 = 60000ms
 });
 
@@ -80,9 +84,9 @@ client.on(Events.InteractionCreate, async interaction => {
     const errorMessage = '명령어 실행 중 오류가 발생했습니다.';
     
     if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: errorMessage, ephemeral: true });
+      await interaction.followUp({ content: errorMessage, flags: MessageFlags.Ephemeral });
     } else {
-      await interaction.reply({ content: errorMessage, ephemeral: true });
+      await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
     }
   }
 });

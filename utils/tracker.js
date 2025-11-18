@@ -135,57 +135,62 @@ class VoiceTracker {
     const currentKoreaDate = getKoreaDate();
 
     for (const [userId, userData] of this.activeUsers.entries()) {
-      if (userData.currentSlot !== currentSlot) {
-        // 슬롯이 변경된 경우
-        // 이전 슬롯의 시간 기록
-        // 현재 시간의 30분 단위 시작 시점을 계산
-        const slotStartMinutes = Math.floor(koreaTime.getMinutes() / 30) * 30;
-        const slotEndTime = new Date(koreaTime);
-        slotEndTime.setMinutes(slotStartMinutes, 0, 0);
-        const slotEnd = slotEndTime.getTime();
+      try {
+        if (userData.currentSlot !== currentSlot) {
+          // 슬롯이 변경된 경우
+          // 이전 슬롯의 시간 기록
+          // 현재 시간의 30분 단위 시작 시점을 계산
+          const slotStartMinutes = Math.floor(koreaTime.getMinutes() / 30) * 30;
+          const slotEndTime = new Date(koreaTime);
+          slotEndTime.setMinutes(slotStartMinutes, 0, 0);
+          const slotEnd = slotEndTime.getTime();
 
-        // 이전 슬롯의 기간 계산 (slotStartTime부터 slotEnd까지)
-        const slotDuration = Math.max(0, Math.floor((slotEnd - userData.slotStartTime) / 1000 / 60));
-        
-        if (slotDuration > 0) {
-          // 이전 슬롯 기록 (날짜도 확인)
-          const prevSlotKoreaTime = new Date(userData.slotStartTime);
-          const prevKoreaDate = getKoreaDate(prevSlotKoreaTime);
-          
-          await database.recordTimeSlot(
-            userId,
-            userData.guildId,
-            prevKoreaDate,
-            userData.currentSlot,
-            slotDuration
-          );
-        }
-
-        // 새 슬롯 시작
-        userData.currentSlot = currentSlot;
-        userData.slotStartTime = slotEnd;
-      } else {
-        // 같은 슬롯이지만 날짜가 변경된 경우 확인 (자정 넘김)
-        const userSlotDate = getKoreaDate(new Date(userData.slotStartTime));
-        if (userSlotDate !== currentKoreaDate) {
-          // 자정을 넘긴 경우: 이전 날짜의 슬롯 종료 처리
-          const dayEndTime = new Date(currentKoreaDate + 'T00:00:00+09:00');
-          const slotDuration = Math.max(0, Math.floor((dayEndTime.getTime() - userData.slotStartTime) / 1000 / 60));
+          // 이전 슬롯의 기간 계산 (slotStartTime부터 slotEnd까지)
+          const slotDuration = Math.max(0, Math.floor((slotEnd - userData.slotStartTime) / 1000 / 60));
           
           if (slotDuration > 0) {
+            // 이전 슬롯 기록 (날짜도 확인)
+            const prevSlotKoreaTime = new Date(userData.slotStartTime);
+            const prevKoreaDate = getKoreaDate(prevSlotKoreaTime);
+            
             await database.recordTimeSlot(
               userId,
               userData.guildId,
-              userSlotDate,
+              prevKoreaDate,
               userData.currentSlot,
               slotDuration
             );
           }
-          
-          // 새 날짜의 새 슬롯 시작
-          userData.slotStartTime = dayEndTime.getTime();
+
+          // 새 슬롯 시작
           userData.currentSlot = currentSlot;
+          userData.slotStartTime = slotEnd;
+        } else {
+          // 같은 슬롯이지만 날짜가 변경된 경우 확인 (자정 넘김)
+          const userSlotDate = getKoreaDate(new Date(userData.slotStartTime));
+          if (userSlotDate !== currentKoreaDate) {
+            // 자정을 넘긴 경우: 이전 날짜의 슬롯 종료 처리
+            const dayEndTime = new Date(currentKoreaDate + 'T00:00:00+09:00');
+            const slotDuration = Math.max(0, Math.floor((dayEndTime.getTime() - userData.slotStartTime) / 1000 / 60));
+            
+            if (slotDuration > 0) {
+              await database.recordTimeSlot(
+                userId,
+                userData.guildId,
+                userSlotDate,
+                userData.currentSlot,
+                slotDuration
+              );
+            }
+            
+            // 새 날짜의 새 슬롯 시작
+            userData.slotStartTime = dayEndTime.getTime();
+            userData.currentSlot = currentSlot;
+          }
         }
+      } catch (error) {
+        console.error(`Error updating time slot for user ${userId}:`, error);
+        // 에러가 발생해도 다른 사용자들의 처리는 계속
       }
     }
   }

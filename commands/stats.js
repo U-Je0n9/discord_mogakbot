@@ -65,8 +65,7 @@ module.exports = {
       const stats = await database.getUserStats(userId, guildId, startDate, endDate);
       const attendanceDates = await database.getUserAttendanceDates(userId, guildId, startDate, endDate);
 
-      const totalHours = stats?.total_hours || 0;
-      const totalMinutes = Math.floor(totalHours * 60);
+      const totalMinutes = stats?.total_minutes || 0;
       const attendanceDays = attendanceDates?.length || 0;
 
       // 메시지 생성

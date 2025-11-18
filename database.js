@@ -147,12 +147,14 @@ class StudyDatabase {
         ts.date <= endDate
     );
 
-    const presentSlots = filtered.filter(ts => ts.is_present === 1).length;
-    const totalHours = presentSlots * 0.5;
+    // 실제 참여한 총 시간(분) 계산
+    const totalMinutes = filtered.reduce((sum, ts) => sum + (ts.minutes_present || 0), 0);
+
+    // 출석일수: 각 30분에서 20분 이상 참여한 날짜 개수
     const attendanceDays = new Set(filtered.filter(ts => ts.is_present === 1).map(ts => ts.date)).size;
 
     return {
-      total_hours: totalHours,
+      total_minutes: totalMinutes,
       attendance_days: attendanceDays
     };
   }
