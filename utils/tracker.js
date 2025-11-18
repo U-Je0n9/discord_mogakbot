@@ -14,8 +14,10 @@ class VoiceTracker {
     const guildId = member.guild.id;
     const channelId = channel.id;
     const now = Date.now();
-    const koreaDate = getKoreaDate();
-    const currentSlot = getCurrentTimeSlot(new Date(now));
+    const baseDate = new Date(now);
+    const koreaDate = getKoreaDate(baseDate);
+    const currentSlot = getCurrentTimeSlot(baseDate);
+    const koreaTime = getKoreaDateTime(baseDate);
 
     // 세션 시작
     await database.startSession(userId, guildId, channelId, now, koreaDate);
@@ -116,7 +118,7 @@ class VoiceTracker {
     if (oldChannel.guild.id === newChannel.guild.id) {
       const userId = member.user.id;
       const userData = this.activeUsers.get(userId);
-      
+
       if (userData) {
         // 채널만 업데이트
         userData.channelId = newChannel.id;
@@ -153,12 +155,12 @@ class VoiceTracker {
 
           // 이전 슬롯의 기간 계산 (slotStartTime부터 slotEnd까지)
           const slotDuration = Math.max(0, Math.floor((slotEnd - userData.slotStartTime) / 1000 / 60));
-          
+
           if (slotDuration > 0) {
             // 이전 슬롯 기록 (날짜도 확인)
             const prevSlotKoreaTime = new Date(userData.slotStartTime);
             const prevKoreaDate = getKoreaDate(prevSlotKoreaTime);
-            
+
             await database.recordTimeSlot(
               userId,
               userData.guildId,
@@ -179,7 +181,7 @@ class VoiceTracker {
             // 자정을 넘긴 경우: 이전 날짜의 슬롯 종료 처리
             const dayEndTime = new Date(currentKoreaDate + 'T00:00:00+09:00');
             const slotDuration = Math.max(0, Math.floor((dayEndTime.getTime() - userData.slotStartTime) / 1000 / 60));
-            
+
             if (slotDuration > 0) {
               await database.recordTimeSlot(
                 userId,
@@ -189,7 +191,7 @@ class VoiceTracker {
                 slotDuration
               );
             }
-            
+
             // 새 날짜의 새 슬롯 시작
             userData.slotStartTime = dayEndTime.getTime();
             userData.currentSlot = currentSlot;
