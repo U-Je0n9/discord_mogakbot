@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const database = require('../database');
 const voiceTracker = require('../utils/tracker');
-const { getKoreaDate, timeSlotToTimeString } = require('../utils/dateUtils');
+const { getKoreaDate, timeSlotToTimeString, formatKoreaDateTime, getCurrentTimeSlot } = require('../utils/dateUtils');
 const config = require('../config');
 
 module.exports = {
@@ -112,10 +112,9 @@ module.exports = {
 
       // 현재 시간 정보
       const now = new Date();
-      const koreaTime = require('../utils/dateUtils').getKoreaDateTime(now);
-      const currentSlot = require('../utils/dateUtils').getCurrentTimeSlot(now);
+      const currentSlot = getCurrentTimeSlot(now);
       message += `\n**⏰ 현재 시간 정보**\n`;
-      message += `- 한국 시간: ${koreaTime.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}\n`;
+      message += `- 한국 시간: ${formatKoreaDateTime(now)}\n`;
       message += `- 현재 슬롯: ${currentSlot} (${timeSlotToTimeString(currentSlot)})\n`;
 
       await interaction.editReply({ content: message });

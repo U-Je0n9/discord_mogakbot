@@ -99,6 +99,21 @@ function formatMinutes(minutes) {
   return `${hours}시간 ${mins}분`;
 }
 
+function formatKoreaDateTime(date = new Date(), options = {}) {
+  const formatter = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    ...options
+  });
+  return formatter.format(date);
+}
+
 module.exports = {
   getKoreaDate,
   getKoreaDateTime,
@@ -108,6 +123,7 @@ module.exports = {
   getWeekStartDate,
   getMonthStartDate,
   getDatesBetween,
-  formatMinutes
+  formatMinutes,
+  formatKoreaDateTime
 };
 
