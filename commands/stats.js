@@ -112,16 +112,6 @@ module.exports = {
         message += `📅 **출석일수**: ${attendanceDays}일\n`;
       }
 
-      if (period === 'all') {
-        const todayDate = new Date(today + 'T00:00:00+09:00');
-        const startDateObj = new Date(startDate + 'T00:00:00+09:00');
-        const totalDays = Math.ceil((todayDate - startDateObj) / (1000 * 60 * 60 * 24));
-        const attendanceRate = totalDays > 0 
-          ? ((attendanceDays / totalDays) * 100).toFixed(1) 
-          : 0;
-        message += `📈 **출석률**: ${attendanceRate}%\n`;
-      }
-
       if (attendanceDays > 0 && (period === 'month' || period === 'all')) {
         message += `\n✅ 출석한 날짜:\n`;
         const dateList = attendanceDates
