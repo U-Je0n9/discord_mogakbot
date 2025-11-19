@@ -52,8 +52,14 @@ module.exports = {
       const period = interaction.options.getString('기간');
       const dateInput = interaction.options.getString('날짜');
       
-      // 디버깅: 실제로 받은 값 확인
-      console.log(`[사용자통계] period: ${period}, dateInput: ${dateInput}, dateInput type: ${typeof dateInput}`);
+      // 디버깅: 모든 옵션 값 확인
+      console.log(`[사용자통계] 모든 옵션:`, {
+        사용자: targetUser?.tag || 'null',
+        기간: period,
+        날짜: dateInput,
+        날짜타입: typeof dateInput,
+        모든옵션: interaction.options.data.map(opt => ({ name: opt.name, value: opt.value, type: opt.type }))
+      });
 
       const today = getKoreaDate();
       let startDate, endDate, periodName;
@@ -70,9 +76,9 @@ module.exports = {
           periodName = '이번달';
           break;
         case 'custom_month':
-          if (!dateInput) {
+          if (!dateInput || dateInput === null || dateInput === undefined) {
             return interaction.editReply({
-              content: '❌ "지정한 달"을 선택하셨습니다. 날짜 옵션에 YYYY-MM 형식으로 입력해주세요. (예: 2025-11)'
+              content: '❌ **"지정한 달"을 선택하셨습니다.**\n\n날짜 옵션에 **YYYY-MM** 형식으로 입력해주세요.\n예: `2025-11`\n\n💡 **참고**: 명령어 입력 시 "날짜" 필드에 값을 입력해야 합니다.'
             });
           }
           // 공백 제거 및 형식 검증
@@ -95,9 +101,9 @@ module.exports = {
           periodName = `${monthInput}월`;
           break;
         case 'custom_date':
-          if (!dateInput) {
+          if (!dateInput || dateInput === null || dateInput === undefined) {
             return interaction.editReply({
-              content: '❌ "지정한 날짜"를 선택하셨습니다. 날짜 옵션에 YYYY-MM-DD 형식으로 입력해주세요. (예: 2025-11-19)'
+              content: '❌ **"지정한 날짜"를 선택하셨습니다.**\n\n날짜 옵션에 **YYYY-MM-DD** 형식으로 입력해주세요.\n예: `2025-11-19`\n\n💡 **참고**: 명령어 입력 시 "날짜" 필드에 값을 입력해야 합니다.'
             });
           }
           // 공백 제거 및 형식 검증
