@@ -89,15 +89,15 @@ module.exports = {
             });
           }
           startDate = `${monthInput}-01`;
-          // 해당 달의 마지막 날 계산
-          const monthDate = new Date(monthInput + '-01T00:00:00+09:00');
-          if (isNaN(monthDate.getTime())) {
-            return interaction.editReply({
-              content: `❌ 잘못된 날짜입니다. 올바른 형식으로 입력해주세요. (예: 2025-11)`
-            });
-          }
-          const lastDay = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
-          endDate = getKoreaDate(lastDay);
+          // 해당 달의 마지막 날 계산 (한국 시간대 기준)
+          const [year, month] = monthInput.split('-').map(Number);
+          // 해당 달의 마지막 날: 다음 달의 0일
+          const lastDayDate = new Date(year, month, 0); // month는 1-based (11월 = 11)
+          // 한국 시간대 기준으로 날짜 문자열 생성
+          const lastDayYear = lastDayDate.getFullYear();
+          const lastDayMonth = String(lastDayDate.getMonth() + 1).padStart(2, '0'); // getMonth()는 0-based
+          const lastDayDay = String(lastDayDate.getDate()).padStart(2, '0');
+          endDate = `${lastDayYear}-${lastDayMonth}-${lastDayDay}`;
           periodName = `${monthInput}월`;
           break;
         case 'custom_date':
