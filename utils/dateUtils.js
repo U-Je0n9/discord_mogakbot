@@ -1,5 +1,11 @@
 const { timeZone } = require('../config');
 
+const SLOT_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+
+function pad(value) {
+  return String(value).padStart(2, '0');
+}
+
 function getKoreaParts(date = new Date()) {
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -26,7 +32,11 @@ function getKoreaParts(date = new Date()) {
 
 function getKoreaDate(date = new Date()) {
   const { year, month, day } = getKoreaParts(date);
-  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
+
+function formatKoreaParts(parts) {
+  return `${parts.year}.${pad(parts.month)}.${pad(parts.day)} ${pad(parts.hour)}:${pad(parts.minute)}:${pad(parts.second)} (KST)`;
 }
 
 /**
@@ -69,7 +79,25 @@ function getCurrentTimeSlot(date = new Date()) {
 function timeSlotToTimeString(slot) {
   const hours = Math.floor(slot / 2);
   const minutes = (slot % 2) * 30;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  return `${pad(hours)}:${pad(minutes)}`;
+}
+
+function getCurrentSlotInfo(date = new Date()) {
+  const parts = getKoreaParts(date);
+  const slotIndex = getTimeSlot(parts.hour, parts.minute);
+  const minutesIntoSlot = parts.minute % 30;
+  const secondsIntoSlot = parts.second;
+  const millisecondsIntoSlot = date.getMilliseconds();
+  const elapsedMs = ((minutesIntoSlot * 60) + secondsIntoSlot) * 1000 + millisecondsIntoSlot;
+  const slotStart = date.getTime() - elapsedMs;
+  const slotEnd = slotStart + SLOT_DURATION_MS;
+
+  return {
+    parts,
+    slotIndex,
+    slotStart,
+    slotEnd
+  };
 }
 
 /**
@@ -118,8 +146,7 @@ function formatMinutes(minutes) {
 }
 
 function formatKoreaDateTime(date = new Date()) {
-  const { year, month, day, hour, minute, second } = getKoreaParts(date);
-  return `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')} (KST)`;
+  return formatKoreaParts(getKoreaParts(date));
 }
 
 module.exports = {
@@ -133,6 +160,8 @@ module.exports = {
   getDatesBetween,
   formatMinutes,
   formatKoreaDateTime,
-  getKoreaParts
+  getKoreaParts,
+  formatKoreaParts,
+  getCurrentSlotInfo
 };
 

@@ -5,7 +5,8 @@ const {
   getKoreaDate, 
   getWeekStartDate, 
   getMonthStartDate,
-  formatMinutes 
+  formatMinutes,
+  getCurrentSlotInfo
 } = require('../utils/dateUtils');
 
 module.exports = {
@@ -32,7 +33,10 @@ module.exports = {
       const guildId = interaction.guild.id;
       const period = interaction.options.getString('기간');
 
-      const today = getKoreaDate();
+      const nowDate = new Date();
+      const today = getKoreaDate(nowDate);
+      const currentSlotInfo = getCurrentSlotInfo(nowDate);
+      const nowTimestamp = nowDate.getTime();
       let startDate, endDate, periodName;
 
       switch (period) {
@@ -71,29 +75,29 @@ module.exports = {
 
       // 현재 진행 중인 세션의 시간을 실시간으로 반영
       let liveBonusMinutes = 0;
-      const todayDateStr = getKoreaDate();
-      const periodIncludesToday = startDate <= todayDateStr && endDate >= todayDateStr;
-      const activeSession = voiceTracker.activeUsers.get(userId);
+      const periodIncludesToday = startDate <= today && endDate >= today;
 
-      if (periodIncludesToday && activeSession && activeSession.guildId === guildId) {
-        const now = Date.now();
-        const nowDate = new Date(now);
-        const { getCurrentTimeSlot, getKoreaParts } = require('../utils/dateUtils');
-        
-        // 현재 슬롯을 실시간으로 계산
-        const currentSlot = getCurrentTimeSlot(nowDate);
-        
-        // 현재 슬롯의 시작 시간 계산 (한국 시간 기준)
-        const koreaParts = getKoreaParts(nowDate);
-        const slotStartMinutes = Math.floor(koreaParts.minute / 30) * 30;
-        const slotStartParts = { ...koreaParts, minute: slotStartMinutes, second: 0 };
-        const slotStartDate = new Date(slotStartParts.year, slotStartParts.month - 1, slotStartParts.day, slotStartParts.hour, slotStartParts.minute, slotStartParts.second);
-        const slotStartTimestamp = slotStartDate.getTime();
-        
-        // 현재 슬롯에서의 경과 시간 계산
-        const currentMinutes = Math.max(0, Math.floor((now - slotStartTimestamp) / 1000 / 60));
-        liveBonusMinutes = Math.min(30, currentMinutes);
-        totalMinutes += liveBonusMinutes;
+      if (periodIncludesToday) {
+        let liveStartTimestamp = null;
+        const activeSession = voiceTracker.activeUsers.get(userId);
+
+        if (activeSession && activeSession.guildId === guildId) {
+          const slotStartCandidate = activeSession.slotStartTime ?? activeSession.joinTime ?? null;
+          if (slotStartCandidate) {
+            liveStartTimestamp = Math.max(slotStartCandidate, currentSlotInfo.slotStart);
+          }
+        } else {
+          const activeDbSession = await database.getActiveSession(userId, guildId);
+          if (activeDbSession) {
+            liveStartTimestamp = Math.max(activeDbSession.join_time, currentSlotInfo.slotStart);
+          }
+        }
+
+        if (liveStartTimestamp !== null) {
+          const currentMinutes = Math.max(0, Math.floor((nowTimestamp - liveStartTimestamp) / 1000 / 60));
+          liveBonusMinutes = Math.min(30, currentMinutes);
+          totalMinutes += liveBonusMinutes;
+        }
       }
 
       // 메시지 생성

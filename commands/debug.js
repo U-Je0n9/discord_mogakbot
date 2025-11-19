@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const database = require('../database');
 const voiceTracker = require('../utils/tracker');
-const { getKoreaDate, timeSlotToTimeString, formatKoreaDateTime, getCurrentTimeSlot } = require('../utils/dateUtils');
+const { getKoreaDate, timeSlotToTimeString, formatKoreaDateTime, formatKoreaParts, getCurrentSlotInfo } = require('../utils/dateUtils');
 const config = require('../config');
 
 module.exports = {
@@ -28,38 +28,29 @@ module.exports = {
     try {
       const guildId = interaction.guild.id;
       const today = getKoreaDate();
-      
+
       // 활성 사용자 정보
       const activeUsers = [];
       const now = Date.now();
       const nowDate = new Date(now);
-      const currentSlot = getCurrentTimeSlot(nowDate);
-      
+      const currentSlotInfo = getCurrentSlotInfo(nowDate);
+      const currentSlot = currentSlotInfo.slotIndex;
+
       for (const [userId, userData] of voiceTracker.activeUsers.entries()) {
         if (userData.guildId === guildId) {
           try {
             const user = await interaction.client.users.fetch(userId).catch(() => null);
             const username = user ? user.username : userId;
             const joinTime = new Date(userData.joinTime);
-            const slotStartTime = new Date(userData.slotStartTime);
-            
-            // 현재 슬롯을 실시간으로 계산 (슬롯이 변경되었을 수 있음)
-            const userCurrentSlot = getCurrentTimeSlot(nowDate);
-            // 현재 슬롯의 시작 시간 계산
-            const koreaParts = require('../utils/dateUtils').getKoreaParts(nowDate);
-            const slotStartMinutes = Math.floor(koreaParts.minute / 30) * 30;
-            const slotStartParts = { ...koreaParts, minute: slotStartMinutes, second: 0 };
-            const slotStartDate = new Date(slotStartParts.year, slotStartParts.month - 1, slotStartParts.day, slotStartParts.hour, slotStartParts.minute, slotStartParts.second);
-            const slotStartTimestamp = slotStartDate.getTime();
-            
-            // 현재 슬롯에서의 경과 시간 계산
-            const currentDuration = Math.floor((now - slotStartTimestamp) / 1000 / 60);
-            
+            const slotStartTimestamp = userData.slotStartTime ?? userData.joinTime;
+            const slotStartTime = new Date(slotStartTimestamp);
+            const currentDuration = Math.max(0, Math.floor((now - slotStartTimestamp) / 1000 / 60));
+
             activeUsers.push({
               userId,
               username,
-              currentSlot: userCurrentSlot,
-              slotStartTime: new Date(slotStartTimestamp),
+              currentSlot: userData.currentSlot,
+              slotStartTime: slotStartTime,
               joinTime: joinTime,
               currentDurationMinutes: currentDuration
             });
@@ -72,7 +63,7 @@ module.exports = {
       // 오늘의 시간 슬롯 데이터
       const todayData = await database.getDateParticipation(today, guildId);
       const userSlotsMap = new Map();
-      
+
       for (const record of todayData) {
         if (!userSlotsMap.has(record.user_id)) {
           userSlotsMap.set(record.user_id, []);
@@ -86,7 +77,7 @@ module.exports = {
 
       // 메시지 생성
       let message = `🔍 **디버그 정보** (${today})\n\n`;
-      
+
       // 활성 사용자
       message += `**🎤 활성 사용자** (${activeUsers.length}명)\n`;
       if (activeUsers.length === 0) {
@@ -111,7 +102,7 @@ module.exports = {
             const user = await interaction.client.users.fetch(userId).catch(() => null);
             const username = user ? user.username : userId;
             message += `\n**${username}**:\n`;
-            
+
             // 슬롯별 정리 (시간순)
             slots.sort((a, b) => a.slot - b.slot);
             for (const slotData of slots) {
@@ -125,7 +116,7 @@ module.exports = {
       }
 
       // 현재 시간 정보
-      const currentKoreaTime = formatKoreaDateTime(nowDate);
+      const currentKoreaTime = formatKoreaParts(currentSlotInfo.parts);
       message += `\n**⏰ 현재 시간 정보**\n`;
       message += `- 한국 시간: ${currentKoreaTime}\n`;
       message += `- 현재 슬롯: ${currentSlot} (${timeSlotToTimeString(currentSlot)})\n`;

@@ -90,6 +90,13 @@ class StudyDatabase {
     return activeSession;
   }
 
+  async getActiveSession(userId, guildId) {
+    const sessions = await this.readSessions();
+    return sessions.find(
+      s => s.user_id === userId && s.guild_id === guildId && s.leave_time === null
+    ) || null;
+  }
+
   async recordTimeSlot(userId, guildId, date, timeSlot, minutes) {
     const timeSlots = await this.readTimeSlots();
     const existingIndex = timeSlots.findIndex(
