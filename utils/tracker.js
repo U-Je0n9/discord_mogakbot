@@ -45,9 +45,9 @@ class VoiceTracker {
 
     const now = Date.now();
     const baseDate = new Date(now);
-    const koreaTime = getKoreaDateTime(baseDate);
+    const koreaParts = require('./dateUtils').getKoreaParts(baseDate);
     const leaveSlot = getCurrentTimeSlot(baseDate);
-    const leaveKoreaDate = getKoreaDate(new Date(now));
+    const leaveKoreaDate = getKoreaDate(baseDate);
 
     // 마지막 슬롯 기록
     if (userData.currentSlot === leaveSlot) {
@@ -68,10 +68,10 @@ class VoiceTracker {
     } else {
       // 슬롯이 다른 경우: 중간 슬롯들도 처리
       // 이전 슬롯 종료 처리
-      const prevSlotEndTime = new Date(koreaTime);
-      const slotStartMinutes = Math.floor(koreaTime.getMinutes() / 30) * 30;
-      prevSlotEndTime.setMinutes(slotStartMinutes, 0, 0);
-      const prevSlotEnd = prevSlotEndTime.getTime();
+      const slotStartMinutes = Math.floor(koreaParts.minute / 30) * 30;
+      const prevSlotEndParts = { ...koreaParts, minute: slotStartMinutes, second: 0 };
+      const prevSlotEndDate = new Date(prevSlotEndParts.year, prevSlotEndParts.month - 1, prevSlotEndParts.day, prevSlotEndParts.hour, prevSlotEndParts.minute, prevSlotEndParts.second);
+      const prevSlotEnd = prevSlotEndDate.getTime();
 
       // 이전 슬롯 기록
       const prevSlotDuration = Math.max(0, Math.floor((prevSlotEnd - userData.slotStartTime) / 1000 / 60));
@@ -138,7 +138,7 @@ class VoiceTracker {
   async updateTimeSlots() {
     const now = Date.now();
     const baseDate = new Date(now);
-    const koreaTime = getKoreaDateTime(baseDate);
+    const koreaParts = require('./dateUtils').getKoreaParts(baseDate);
     const currentSlot = getCurrentTimeSlot(baseDate);
     const currentKoreaDate = getKoreaDate();
 
@@ -147,11 +147,12 @@ class VoiceTracker {
         if (userData.currentSlot !== currentSlot) {
           // 슬롯이 변경된 경우
           // 이전 슬롯의 시간 기록
-          // 현재 시간의 30분 단위 시작 시점을 계산
-          const slotStartMinutes = Math.floor(koreaTime.getMinutes() / 30) * 30;
-          const slotEndTime = new Date(koreaTime);
-          slotEndTime.setMinutes(slotStartMinutes, 0, 0);
-          const slotEnd = slotEndTime.getTime();
+          // 현재 한국 시간의 30분 단위 시작 시점을 계산
+          const slotStartMinutes = Math.floor(koreaParts.minute / 30) * 30;
+          // 한국 시간 기준으로 슬롯 종료 시점 계산
+          const slotEndParts = { ...koreaParts, minute: slotStartMinutes, second: 0 };
+          const slotEndDate = new Date(slotEndParts.year, slotEndParts.month - 1, slotEndParts.day, slotEndParts.hour, slotEndParts.minute, slotEndParts.second);
+          const slotEnd = slotEndDate.getTime();
 
           // 이전 슬롯의 기간 계산 (slotStartTime부터 slotEnd까지)
           const slotDuration = Math.max(0, Math.floor((slotEnd - userData.slotStartTime) / 1000 / 60));

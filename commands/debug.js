@@ -45,8 +45,8 @@ module.exports = {
               userId,
               username,
               currentSlot: userData.currentSlot,
-              slotStartTime: slotStartTime.toISOString(),
-              joinTime: joinTime.toISOString(),
+              slotStartTime: slotStartTime,
+              joinTime: joinTime,
               currentDurationMinutes: currentDuration
             });
           } catch (error) {
@@ -81,9 +81,9 @@ module.exports = {
         for (const user of activeUsers) {
           message += `- **${user.username}** (${user.userId})\n`;
           message += `  └ 현재 슬롯: ${user.currentSlot} (${timeSlotToTimeString(user.currentSlot)})\n`;
-          message += `  └ 슬롯 시작: ${new Date(user.slotStartTime).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}\n`;
+          message += `  └ 슬롯 시작: ${formatKoreaDateTime(new Date(user.slotStartTime))}\n`;
           message += `  └ 슬롯 경과: ${user.currentDurationMinutes}분\n`;
-          message += `  └ 입장 시간: ${new Date(user.joinTime).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}\n\n`;
+          message += `  └ 입장 시간: ${formatKoreaDateTime(new Date(user.joinTime))}\n\n`;
         }
       }
 

@@ -31,10 +31,20 @@ function getKoreaDate(date = new Date()) {
 
 /**
  * 한국 시간 기준으로 현재 시간 정보 반환
+ * 주의: 이 함수는 표시용으로만 사용하고, 실제 Date 객체 연산에는 사용하지 마세요.
+ * Date 객체는 항상 로컬 시간대를 기준으로 하므로, 한국 시간 문자열만 반환합니다.
  */
 function getKoreaDateTime(date = new Date()) {
   const { year, month, day, hour, minute, second } = getKoreaParts(date);
-  return new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  // 한국 시간을 나타내는 Date 객체를 만들기 위해, 
+  // 한국 시간의 시/분/초를 로컬 시간대로 해석한 Date를 반환
+  // (서버가 UTC라면 9시간을 빼서 한국 시간을 만들고, 
+  //  서버가 한국 시간대라면 그대로 사용)
+  const localDate = new Date(year, month - 1, day, hour, minute, second);
+  // UTC 오프셋을 고려하여 한국 시간을 유지
+  const utcOffset = localDate.getTimezoneOffset() * 60000; // 분을 밀리초로 변환
+  const koreaOffset = 9 * 60 * 60000; // 한국은 UTC+9
+  return new Date(localDate.getTime() - utcOffset + koreaOffset);
 }
 
 /**
@@ -122,6 +132,7 @@ module.exports = {
   getMonthStartDate,
   getDatesBetween,
   formatMinutes,
-  formatKoreaDateTime
+  formatKoreaDateTime,
+  getKoreaParts
 };
 
