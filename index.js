@@ -4,6 +4,9 @@ const voiceTracker = require('./utils/tracker');
 const fs = require('fs');
 const path = require('path');
 
+const buildLabel = `getCurrentSlotInfo-hotfix (${process.env.RAILWAY_GIT_COMMIT_SHA || 'local'})`;
+console.log(`[BUILD] ${buildLabel} loaded at ${new Date().toISOString()}`);
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -33,7 +36,7 @@ for (const file of commandFiles) {
 // 봇 준비 완료
 client.once(Events.ClientReady, () => {
   console.log(`Ready! Logged in as ${client.user.tag}`);
-  
+
   // 시간 슬롯 업데이트를 위한 정기 실행 (1분마다)
   setInterval(async () => {
     try {
@@ -82,7 +85,7 @@ client.on(Events.InteractionCreate, async interaction => {
   } catch (error) {
     console.error(`Error executing ${interaction.commandName}:`, error);
     const errorMessage = '명령어 실행 중 오류가 발생했습니다.';
-    
+
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp({ content: errorMessage, flags: MessageFlags.Ephemeral });
     } else {
