@@ -1,5 +1,16 @@
 const database = require('../database');
-const { getKoreaDate, getKoreaDateTime, getTimeSlot, getCurrentTimeSlot } = require('./dateUtils');
+const {
+  getKoreaDate,
+  getKoreaDateTime,
+  getCurrentTimeSlot,
+  getCurrentSlotInfo
+} = require('./dateUtils');
+
+const SLOTS_PER_DAY = 48;
+
+function getNextSlotIndex(slotIndex) {
+  return (slotIndex + 1) % SLOTS_PER_DAY;
+}
 
 class VoiceTracker {
   constructor() {
@@ -44,63 +55,9 @@ class VoiceTracker {
     if (!userData) return;
 
     const now = Date.now();
-    const baseDate = new Date(now);
-    const koreaParts = require('./dateUtils').getKoreaParts(baseDate);
-    const leaveSlot = getCurrentTimeSlot(baseDate);
-    const leaveKoreaDate = getKoreaDate(baseDate);
-
-    // 마지막 슬롯 기록
-    if (userData.currentSlot === leaveSlot) {
-      // 같은 슬롯 내에서 나간 경우
-      const slotDuration = Math.floor((now - userData.slotStartTime) / 1000 / 60);
-      console.log(`[Voice Leave] ${member.user.tag} (${userId}) left in same slot ${leaveSlot}, duration: ${slotDuration} minutes`);
-      if (slotDuration > 0) {
-        const slotKoreaDate = getKoreaDate(new Date(userData.slotStartTime));
-        await database.recordTimeSlot(
-          userId,
-          userData.guildId,
-          slotKoreaDate,
-          leaveSlot,
-          slotDuration
-        );
-        console.log(`[Time Slot Recorded] User: ${userId}, Date: ${slotKoreaDate}, Slot: ${leaveSlot}, Minutes: ${slotDuration}`);
-      }
-    } else {
-      // 슬롯이 다른 경우: 중간 슬롯들도 처리
-      // 이전 슬롯 종료 처리
-      const slotStartMinutes = Math.floor(koreaParts.minute / 30) * 30;
-      const prevSlotEndParts = { ...koreaParts, minute: slotStartMinutes, second: 0 };
-      const prevSlotEndDate = new Date(prevSlotEndParts.year, prevSlotEndParts.month - 1, prevSlotEndParts.day, prevSlotEndParts.hour, prevSlotEndParts.minute, prevSlotEndParts.second);
-      const prevSlotEnd = prevSlotEndDate.getTime();
-
-      // 이전 슬롯 기록
-      const prevSlotDuration = Math.max(0, Math.floor((prevSlotEnd - userData.slotStartTime) / 1000 / 60));
-      if (prevSlotDuration > 0) {
-        const prevSlotKoreaDate = getKoreaDate(new Date(userData.slotStartTime));
-        await database.recordTimeSlot(
-          userId,
-          userData.guildId,
-          prevSlotKoreaDate,
-          userData.currentSlot,
-          prevSlotDuration
-        );
-        console.log(`[Time Slot Recorded] User: ${userId}, Date: ${prevSlotKoreaDate}, Slot: ${userData.currentSlot}, Minutes: ${prevSlotDuration}`);
-      }
-
-      // 현재 슬롯 기록 (부분 참여)
-      const currentSlotDuration = Math.max(0, Math.floor((now - prevSlotEnd) / 1000 / 60));
-      console.log(`[Voice Leave] ${member.user.tag} (${userId}) left across slots: ${userData.currentSlot} -> ${leaveSlot}, prev: ${prevSlotDuration}min, current: ${currentSlotDuration}min`);
-      if (currentSlotDuration > 0) {
-        await database.recordTimeSlot(
-          userId,
-          userData.guildId,
-          leaveKoreaDate,
-          leaveSlot,
-          currentSlotDuration
-        );
-        console.log(`[Time Slot Recorded] User: ${userId}, Date: ${leaveKoreaDate}, Slot: ${leaveSlot}, Minutes: ${currentSlotDuration}`);
-      }
-    }
+    const { records } = await this._flushUntil(userId, userData, now);
+    const totalMinutes = records.reduce((sum, record) => sum + record.minutes, 0);
+    console.log(`[Voice Leave] ${member.user.tag} (${userId}) recorded ${totalMinutes} minute(s) across ${records.length} slot(s) before leaving.`);
 
     // 세션 종료
     await database.endSession(userId, userData.guildId, now);
@@ -138,66 +95,25 @@ class VoiceTracker {
   async updateTimeSlots() {
     const now = Date.now();
     const baseDate = new Date(now);
-    const koreaParts = require('./dateUtils').getKoreaParts(baseDate);
-    const currentSlot = getCurrentTimeSlot(baseDate);
-    const currentKoreaDate = getKoreaDate();
+    const currentSlotInfo = getCurrentSlotInfo(baseDate);
+    const currentSlot = currentSlotInfo.slotIndex;
+    const currentSlotStart = currentSlotInfo.slotStart;
 
     for (const [userId, userData] of this.activeUsers.entries()) {
       try {
-        if (userData.currentSlot !== currentSlot) {
-          // 슬롯이 변경된 경우
-          // 이전 슬롯의 시간 기록
-          // 현재 한국 시간의 30분 단위 시작 시점을 계산
-          const slotStartMinutes = Math.floor(koreaParts.minute / 30) * 30;
-          // 한국 시간 기준으로 슬롯 종료 시점 계산
-          const slotEndParts = { ...koreaParts, minute: slotStartMinutes, second: 0 };
-          const slotEndDate = new Date(slotEndParts.year, slotEndParts.month - 1, slotEndParts.day, slotEndParts.hour, slotEndParts.minute, slotEndParts.second);
-          const slotEnd = slotEndDate.getTime();
-
-          // 이전 슬롯의 기간 계산 (slotStartTime부터 slotEnd까지)
-          const slotDuration = Math.max(0, Math.floor((slotEnd - userData.slotStartTime) / 1000 / 60));
-
-          if (slotDuration > 0) {
-            // 이전 슬롯 기록 (날짜도 확인)
-            const prevSlotKoreaTime = new Date(userData.slotStartTime);
-            const prevKoreaDate = getKoreaDate(prevSlotKoreaTime);
-
-            await database.recordTimeSlot(
-              userId,
-              userData.guildId,
-              prevKoreaDate,
-              userData.currentSlot,
-              slotDuration
-            );
-            console.log(`[Slot Update] User: ${userId} slot changed ${userData.currentSlot} -> ${currentSlot}, recorded ${slotDuration} minutes for slot ${userData.currentSlot}`);
-          }
-
-          // 새 슬롯 시작
-          userData.currentSlot = currentSlot;
-          userData.slotStartTime = slotEnd;
-        } else {
-          // 같은 슬롯이지만 날짜가 변경된 경우 확인 (자정 넘김)
-          const userSlotDate = getKoreaDate(new Date(userData.slotStartTime));
-          if (userSlotDate !== currentKoreaDate) {
-            // 자정을 넘긴 경우: 이전 날짜의 슬롯 종료 처리
-            const dayEndTime = new Date(currentKoreaDate + 'T00:00:00+09:00');
-            const slotDuration = Math.max(0, Math.floor((dayEndTime.getTime() - userData.slotStartTime) / 1000 / 60));
-
-            if (slotDuration > 0) {
-              await database.recordTimeSlot(
-                userId,
-                userData.guildId,
-                userSlotDate,
-                userData.currentSlot,
-                slotDuration
-              );
-            }
-
-            // 새 날짜의 새 슬롯 시작
-            userData.slotStartTime = dayEndTime.getTime();
-            userData.currentSlot = currentSlot;
-          }
+        if (userData.currentSlot === currentSlot) {
+          continue;
         }
+
+        const { records } = await this._flushUntil(userId, userData, currentSlotStart);
+
+        if (records.length > 0) {
+          const recordedMinutes = records.reduce((sum, record) => sum + record.minutes, 0);
+          console.log(`[Slot Update] User: ${userId} advanced to slot ${currentSlot}, recorded ${recordedMinutes} minute(s) across ${records.length} slot(s).`);
+        }
+
+        userData.currentSlot = currentSlot;
+        userData.slotStartTime = currentSlotStart;
       } catch (error) {
         console.error(`Error updating time slot for user ${userId}:`, error);
         // 에러가 발생해도 다른 사용자들의 처리는 계속
@@ -214,6 +130,67 @@ class VoiceTracker {
       if (userData.guildId === guildId) count++;
     }
     return count;
+  }
+
+  /**
+   * 특정 시점까지 사용자의 시간 데이터를 기록
+   */
+  async _flushUntil(userId, userData, endTimestamp) {
+    const records = [];
+    const initialStart = userData.slotStartTime ?? endTimestamp;
+    const startTime = Math.min(initialStart, endTimestamp);
+
+    if (startTime >= endTimestamp) {
+      return {
+        nextSlotIndex: userData.currentSlot,
+        nextSlotStartTime: startTime,
+        records
+      };
+    }
+
+    let cursor = startTime;
+
+    while (cursor < endTimestamp) {
+      const slotInfo = getCurrentSlotInfo(new Date(cursor));
+      const slotEndTime = Math.min(slotInfo.slotEnd, endTimestamp);
+      const minutes = Math.max(0, Math.floor((slotEndTime - cursor) / 1000 / 60));
+
+      if (minutes > 0) {
+        const slotDate = getKoreaDate(new Date(cursor));
+        await database.recordTimeSlot(
+          userId,
+          userData.guildId,
+          slotDate,
+          slotInfo.slotIndex,
+          minutes
+        );
+        records.push({
+          slotIndex: slotInfo.slotIndex,
+          minutes
+        });
+        console.log(`[Time Slot Recorded] User: ${userId}, Date: ${slotDate}, Slot: ${slotInfo.slotIndex}, Minutes: ${minutes}`);
+      }
+
+      if (slotEndTime >= endTimestamp) {
+        const nextSlotIndex = slotEndTime === slotInfo.slotEnd
+          ? getNextSlotIndex(slotInfo.slotIndex)
+          : slotInfo.slotIndex;
+
+        return {
+          nextSlotIndex,
+          nextSlotStartTime: slotEndTime,
+          records
+        };
+      }
+
+      cursor = slotInfo.slotEnd;
+    }
+
+    return {
+      nextSlotIndex: userData.currentSlot,
+      nextSlotStartTime: cursor,
+      records
+    };
   }
 }
 
