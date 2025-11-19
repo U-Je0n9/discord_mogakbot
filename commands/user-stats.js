@@ -137,11 +137,18 @@ module.exports = {
           });
       }
 
+      // 디버깅: 날짜 범위 확인
+      console.log(`[사용자통계] 날짜 범위: startDate=${startDate}, endDate=${endDate}, period=${period}`);
+      
       // 통계 조회
       const stats = await database.getUserStats(userId, guildId, startDate, endDate);
       const attendanceDates = await database.getUserAttendanceDates(userId, guildId, startDate, endDate);
+      
+      // 디버깅: 조회 결과 확인
+      console.log(`[사용자통계] 조회 결과: stats.attendance_days=${stats?.attendance_days}, attendanceDates.length=${attendanceDates?.length}, dates=${attendanceDates?.map(d => d.date).join(', ')}`);
 
-      const attendanceDays = attendanceDates?.length || 0;
+      // getUserStats의 attendance_days를 우선 사용 (더 정확함)
+      const attendanceDays = stats?.attendance_days || attendanceDates?.length || 0;
 
       // 서버 닉네임 가져오기
       const targetMember = await interaction.guild.members.fetch(userId).catch(() => null);
