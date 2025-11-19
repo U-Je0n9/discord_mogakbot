@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const database = require('../database');
-const { getKoreaDate, timeSlotToTimeString } = require('../utils/dateUtils');
+const voiceTracker = require('../utils/tracker');
+const { getKoreaDate, timeSlotToTimeString, getCurrentSlotInfo, formatMinutes } = require('../utils/dateUtils');
 const config = require('../config');
 
 module.exports = {
@@ -31,6 +32,11 @@ module.exports = {
 
     try {
       const dateInput = interaction.options.getString('날짜') || getKoreaDate();
+      const today = getKoreaDate();
+      const nowDate = new Date();
+      const currentSlotInfo = getCurrentSlotInfo(nowDate);
+      const nowTimestamp = nowDate.getTime();
+      const isToday = dateInput === today;
       
       // 날짜 형식 검증
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
@@ -47,16 +53,46 @@ module.exports = {
         });
       }
 
-      // 사용자별로 그룹화
+      // 사용자별로 그룹화 및 실시간 시간 계산
       const userMap = new Map();
+      const userTotalMinutes = new Map(); // 사용자별 총 시간 (실시간 포함)
+      
       for (const record of participation) {
         if (!userMap.has(record.user_id)) {
           userMap.set(record.user_id, new Array(48).fill(false)); // 48개 슬롯 (24시간 / 30분)
+          userTotalMinutes.set(record.user_id, 0);
         }
         const slots = userMap.get(record.user_id);
         // 같은 슬롯에 여러 레코드가 있을 수 있으므로, 하나라도 is_present === 1이면 O
         if (record.is_present === 1) {
           slots[record.time_slot] = true;
+        }
+        userTotalMinutes.set(record.user_id, userTotalMinutes.get(record.user_id) + (record.minutes_present || 0));
+      }
+
+      // 실시간 시간 추가 (오늘 날짜인 경우)
+      if (isToday) {
+        for (const [userId] of userMap.entries()) {
+          let liveBonusMinutes = 0;
+          const activeSession = voiceTracker.activeUsers.get(userId);
+          if (activeSession && activeSession.guildId === interaction.guild.id) {
+            const slotStartCandidate = activeSession.slotStartTime ?? activeSession.joinTime ?? null;
+            if (slotStartCandidate) {
+              const liveStartTimestamp = Math.max(slotStartCandidate, currentSlotInfo.slotStart);
+              const currentMinutes = Math.max(0, Math.floor((nowTimestamp - liveStartTimestamp) / 1000 / 60));
+              liveBonusMinutes = Math.min(30, currentMinutes);
+            }
+          } else {
+            const activeDbSession = await database.getActiveSession(userId, interaction.guild.id);
+            if (activeDbSession) {
+              const liveStartTimestamp = Math.max(activeDbSession.join_time, currentSlotInfo.slotStart);
+              const currentMinutes = Math.max(0, Math.floor((nowTimestamp - liveStartTimestamp) / 1000 / 60));
+              liveBonusMinutes = Math.min(30, currentMinutes);
+            }
+          }
+          if (liveBonusMinutes > 0) {
+            userTotalMinutes.set(userId, userTotalMinutes.get(userId) + liveBonusMinutes);
+          }
         }
       }
 
@@ -73,8 +109,11 @@ module.exports = {
       // 각 사용자별 참여 현황
       let count = 0;
       for (const [userId, slots] of userMap.entries()) {
-        const user = await interaction.client.users.fetch(userId).catch(() => null);
-        const username = user ? user.username : userId;
+        // 서버 닉네임 가져오기
+        const member = await interaction.guild.members.fetch(userId).catch(() => null);
+        const displayName = member ? member.displayName : userId;
+        
+        const totalMinutes = userTotalMinutes.get(userId) || 0;
 
         // 슬롯별 O/X 표시 (4개씩 묶어서 표시)
         const participationLine = [];
@@ -84,7 +123,7 @@ module.exports = {
           participationLine.push(groupStr);
         }
 
-        message += `**${username}**: ${participationLine.join(' ')}\n`;
+        message += `**${displayName}**: ${participationLine.join(' ')} (${formatMinutes(totalMinutes)})\n`;
         count++;
 
         // Discord 메시지 길이 제한 (2000자) 고려

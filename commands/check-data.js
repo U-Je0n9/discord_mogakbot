@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const database = require('../database');
-const { getKoreaDate } = require('../utils/dateUtils');
+const voiceTracker = require('../utils/tracker');
+const { getKoreaDate, getCurrentSlotInfo, formatMinutes } = require('../utils/dateUtils');
 const config = require('../config');
 
 module.exports = {
@@ -27,6 +28,9 @@ module.exports = {
     try {
       const guildId = interaction.guild.id;
       const today = getKoreaDate();
+      const nowDate = new Date();
+      const currentSlotInfo = getCurrentSlotInfo(nowDate);
+      const nowTimestamp = nowDate.getTime();
       
       // 오늘의 모든 시간 슬롯 데이터
       const todayData = await database.getDateParticipation(today, guildId);
@@ -51,16 +55,40 @@ module.exports = {
       
       for (const [userId, records] of userMap.entries()) {
         try {
-          const user = await interaction.client.users.fetch(userId).catch(() => null);
-          const username = user ? user.username : userId;
+          // 서버 닉네임 가져오기
+          const member = await interaction.guild.members.fetch(userId).catch(() => null);
+          const displayName = member ? member.displayName : userId;
           
-          // 총 시간 계산
-          const totalMinutes = records.reduce((sum, r) => sum + (r.minutes_present || 0), 0);
-          const totalHours = Math.floor(totalMinutes / 60);
-          const remainingMinutes = totalMinutes % 60;
+          // 총 시간 계산 (DB에서 가져온 데이터)
+          let totalMinutes = records.reduce((sum, r) => sum + (r.minutes_present || 0), 0);
           
-          message += `**${username}** (${userId})\n`;
-          message += `총 시간: ${totalMinutes}분 (${totalHours}시간 ${remainingMinutes}분)\n`;
+          // 실시간 시간 추가 (오늘 날짜이고 활성 세션이 있는 경우)
+          let liveBonusMinutes = 0;
+          const activeSession = voiceTracker.activeUsers.get(userId);
+          if (activeSession && activeSession.guildId === guildId) {
+            const slotStartCandidate = activeSession.slotStartTime ?? activeSession.joinTime ?? null;
+            if (slotStartCandidate) {
+              const liveStartTimestamp = Math.max(slotStartCandidate, currentSlotInfo.slotStart);
+              const currentMinutes = Math.max(0, Math.floor((nowTimestamp - liveStartTimestamp) / 1000 / 60));
+              liveBonusMinutes = Math.min(30, currentMinutes);
+              totalMinutes += liveBonusMinutes;
+            }
+          } else {
+            const activeDbSession = await database.getActiveSession(userId, guildId);
+            if (activeDbSession) {
+              const liveStartTimestamp = Math.max(activeDbSession.join_time, currentSlotInfo.slotStart);
+              const currentMinutes = Math.max(0, Math.floor((nowTimestamp - liveStartTimestamp) / 1000 / 60));
+              liveBonusMinutes = Math.min(30, currentMinutes);
+              totalMinutes += liveBonusMinutes;
+            }
+          }
+          
+          message += `**${displayName}** (${userId})\n`;
+          message += `총 시간: ${formatMinutes(totalMinutes)}`;
+          if (liveBonusMinutes > 0) {
+            message += ` (진행 중 +${liveBonusMinutes}분 포함)`;
+          }
+          message += `\n`;
           message += `총 레코드 수: ${records.length}개\n\n`;
           
           // 슬롯별 상세 정보
@@ -86,6 +114,7 @@ module.exports = {
           }
         } catch (error) {
           message += `\n**${userId}**: ${records.length}개 레코드\n`;
+          console.error(`Error processing user ${userId}:`, error);
         }
       }
 

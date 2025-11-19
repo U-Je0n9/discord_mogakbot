@@ -65,11 +65,12 @@ module.exports = {
       const medals = ['🥇', '🥈', '🥉'];
       for (let i = 0; i < leaderboard.length; i++) {
         const entry = leaderboard[i];
-        const user = await interaction.client.users.fetch(entry.user_id).catch(() => null);
-        const username = user ? user.username : entry.user_id;
+        // 서버 닉네임 가져오기
+        const member = await interaction.guild.members.fetch(entry.user_id).catch(() => null);
+        const displayName = member ? member.displayName : entry.user_id;
         const medal = i < 3 ? medals[i] + ' ' : `${i + 1}. `;
         
-        message += `${medal}**${username}**: ${entry.attendance_days}일\n`;
+        message += `${medal}**${displayName}**: ${entry.attendance_days}일\n`;
       }
 
       await interaction.editReply({ content: message });
