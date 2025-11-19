@@ -51,6 +51,9 @@ module.exports = {
       const guildId = interaction.guild.id;
       const period = interaction.options.getString('기간');
       const dateInput = interaction.options.getString('날짜');
+      
+      // 디버깅: 실제로 받은 값 확인
+      console.log(`[사용자통계] period: ${period}, dateInput: ${dateInput}, dateInput type: ${typeof dateInput}`);
 
       const today = getKoreaDate();
       let startDate, endDate, periodName;
@@ -67,27 +70,60 @@ module.exports = {
           periodName = '이번달';
           break;
         case 'custom_month':
-          if (!dateInput || !/^\d{4}-\d{2}$/.test(dateInput)) {
+          if (!dateInput) {
             return interaction.editReply({
-              content: '❌ 날짜 형식이 올바르지 않습니다. YYYY-MM 형식으로 입력해주세요. (예: 2024-01)'
+              content: '❌ "지정한 달"을 선택하셨습니다. 날짜 옵션에 YYYY-MM 형식으로 입력해주세요. (예: 2025-11)'
             });
           }
-          startDate = `${dateInput}-01`;
+          // 공백 제거 및 형식 검증
+          const monthInput = dateInput.trim();
+          if (!/^\d{4}-\d{2}$/.test(monthInput)) {
+            return interaction.editReply({
+              content: `❌ 날짜 형식이 올바르지 않습니다.\n입력하신 값: "${dateInput}"\n올바른 형식: YYYY-MM (예: 2025-11)`
+            });
+          }
+          startDate = `${monthInput}-01`;
           // 해당 달의 마지막 날 계산
-          const monthDate = new Date(dateInput + '-01T00:00:00+09:00');
+          const monthDate = new Date(monthInput + '-01T00:00:00+09:00');
+          if (isNaN(monthDate.getTime())) {
+            return interaction.editReply({
+              content: `❌ 잘못된 날짜입니다. 올바른 형식으로 입력해주세요. (예: 2025-11)`
+            });
+          }
           const lastDay = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
           endDate = getKoreaDate(lastDay);
-          periodName = `${dateInput}월`;
+          periodName = `${monthInput}월`;
           break;
         case 'custom_date':
-          if (!dateInput || !/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+          if (!dateInput) {
             return interaction.editReply({
-              content: '❌ 날짜 형식이 올바르지 않습니다. YYYY-MM-DD 형식으로 입력해주세요. (예: 2024-01-15)'
+              content: '❌ "지정한 날짜"를 선택하셨습니다. 날짜 옵션에 YYYY-MM-DD 형식으로 입력해주세요. (예: 2025-11-19)'
             });
           }
-          startDate = dateInput;
-          endDate = dateInput;
-          periodName = dateInput;
+          // 공백 제거 및 형식 검증
+          const dateInputTrimmed = dateInput.trim();
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInputTrimmed)) {
+            return interaction.editReply({
+              content: `❌ 날짜 형식이 올바르지 않습니다.\n입력하신 값: "${dateInput}"\n올바른 형식: YYYY-MM-DD (예: 2025-11-19)`
+            });
+          }
+          // 날짜 유효성 검증
+          const dateObj = new Date(dateInputTrimmed + 'T00:00:00+09:00');
+          if (isNaN(dateObj.getTime())) {
+            return interaction.editReply({
+              content: `❌ 잘못된 날짜입니다. 올바른 형식으로 입력해주세요. (예: 2025-11-19)`
+            });
+          }
+          // 입력한 날짜와 파싱된 날짜가 일치하는지 확인
+          const parsedDate = getKoreaDate(dateObj);
+          if (parsedDate !== dateInputTrimmed) {
+            return interaction.editReply({
+              content: `❌ 잘못된 날짜입니다. 존재하지 않는 날짜일 수 있습니다. (입력: ${dateInputTrimmed})`
+            });
+          }
+          startDate = dateInputTrimmed;
+          endDate = dateInputTrimmed;
+          periodName = dateInputTrimmed;
           break;
         default:
           return interaction.editReply({
