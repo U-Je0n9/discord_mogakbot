@@ -31,6 +31,10 @@ module.exports = {
       
       // 활성 사용자 정보
       const activeUsers = [];
+      const now = Date.now();
+      const nowDate = new Date(now);
+      const currentSlot = getCurrentTimeSlot(nowDate);
+      
       for (const [userId, userData] of voiceTracker.activeUsers.entries()) {
         if (userData.guildId === guildId) {
           try {
@@ -38,14 +42,24 @@ module.exports = {
             const username = user ? user.username : userId;
             const joinTime = new Date(userData.joinTime);
             const slotStartTime = new Date(userData.slotStartTime);
-            const now = Date.now();
-            const currentDuration = Math.floor((now - userData.slotStartTime) / 1000 / 60);
+            
+            // 현재 슬롯을 실시간으로 계산 (슬롯이 변경되었을 수 있음)
+            const userCurrentSlot = getCurrentTimeSlot(nowDate);
+            // 현재 슬롯의 시작 시간 계산
+            const koreaParts = require('../utils/dateUtils').getKoreaParts(nowDate);
+            const slotStartMinutes = Math.floor(koreaParts.minute / 30) * 30;
+            const slotStartParts = { ...koreaParts, minute: slotStartMinutes, second: 0 };
+            const slotStartDate = new Date(slotStartParts.year, slotStartParts.month - 1, slotStartParts.day, slotStartParts.hour, slotStartParts.minute, slotStartParts.second);
+            const slotStartTimestamp = slotStartDate.getTime();
+            
+            // 현재 슬롯에서의 경과 시간 계산
+            const currentDuration = Math.floor((now - slotStartTimestamp) / 1000 / 60);
             
             activeUsers.push({
               userId,
               username,
-              currentSlot: userData.currentSlot,
-              slotStartTime: slotStartTime,
+              currentSlot: userCurrentSlot,
+              slotStartTime: new Date(slotStartTimestamp),
               joinTime: joinTime,
               currentDurationMinutes: currentDuration
             });
@@ -111,10 +125,9 @@ module.exports = {
       }
 
       // 현재 시간 정보
-      const now = new Date();
-      const currentSlot = getCurrentTimeSlot(now);
+      const currentKoreaTime = formatKoreaDateTime(nowDate);
       message += `\n**⏰ 현재 시간 정보**\n`;
-      message += `- 한국 시간: ${formatKoreaDateTime(now)}\n`;
+      message += `- 한국 시간: ${currentKoreaTime}\n`;
       message += `- 현재 슬롯: ${currentSlot} (${timeSlotToTimeString(currentSlot)})\n`;
 
       await interaction.editReply({ content: message });

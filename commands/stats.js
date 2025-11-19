@@ -77,7 +77,21 @@ module.exports = {
 
       if (periodIncludesToday && activeSession && activeSession.guildId === guildId) {
         const now = Date.now();
-        const currentMinutes = Math.max(0, Math.floor((now - activeSession.slotStartTime) / 1000 / 60));
+        const nowDate = new Date(now);
+        const { getCurrentTimeSlot, getKoreaParts } = require('../utils/dateUtils');
+        
+        // 현재 슬롯을 실시간으로 계산
+        const currentSlot = getCurrentTimeSlot(nowDate);
+        
+        // 현재 슬롯의 시작 시간 계산 (한국 시간 기준)
+        const koreaParts = getKoreaParts(nowDate);
+        const slotStartMinutes = Math.floor(koreaParts.minute / 30) * 30;
+        const slotStartParts = { ...koreaParts, minute: slotStartMinutes, second: 0 };
+        const slotStartDate = new Date(slotStartParts.year, slotStartParts.month - 1, slotStartParts.day, slotStartParts.hour, slotStartParts.minute, slotStartParts.second);
+        const slotStartTimestamp = slotStartDate.getTime();
+        
+        // 현재 슬롯에서의 경과 시간 계산
+        const currentMinutes = Math.max(0, Math.floor((now - slotStartTimestamp) / 1000 / 60));
         liveBonusMinutes = Math.min(30, currentMinutes);
         totalMinutes += liveBonusMinutes;
       }
