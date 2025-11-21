@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const database = require('../database');
-const { getKoreaDate, getMonthStartDate, getDatesBetween } = require('../utils/dateUtils');
+const voiceTracker = require('../utils/tracker');
+const { getKoreaDate, getMonthStartDate, getDatesBetween, formatMinutes, getCurrentSlotInfo } = require('../utils/dateUtils');
 const config = require('../config');
 
 module.exports = {
@@ -149,22 +150,95 @@ module.exports = {
 
       // getUserStats의 attendance_days를 우선 사용 (더 정확함)
       const attendanceDays = stats?.attendance_days || attendanceDates?.length || 0;
+      let totalMinutes = stats?.total_minutes || 0;
+
+      // 현재 진행 중인 세션의 시간을 실시간으로 반영 (오늘 날짜가 포함된 경우)
+      const periodIncludesToday = startDate <= today && endDate >= today;
+      let liveBonusMinutes = 0;
+
+      if (periodIncludesToday) {
+        const nowDate = new Date();
+        const currentSlotInfo = getCurrentSlotInfo(nowDate);
+        const nowTimestamp = nowDate.getTime();
+        let liveStartTimestamp = null;
+        const activeSession = voiceTracker.activeUsers.get(userId);
+
+        if (activeSession && activeSession.guildId === guildId) {
+          const slotStartCandidate = activeSession.slotStartTime ?? activeSession.joinTime ?? null;
+          if (slotStartCandidate) {
+            liveStartTimestamp = Math.max(slotStartCandidate, currentSlotInfo.slotStart);
+          }
+        } else {
+          const activeDbSession = await database.getActiveSession(userId, guildId);
+          if (activeDbSession) {
+            liveStartTimestamp = Math.max(activeDbSession.join_time, currentSlotInfo.slotStart);
+          }
+        }
+
+        if (liveStartTimestamp !== null) {
+          const currentMinutes = Math.max(0, Math.floor((nowTimestamp - liveStartTimestamp) / 1000 / 60));
+          liveBonusMinutes = Math.min(30, currentMinutes);
+          totalMinutes += liveBonusMinutes;
+        }
+      }
 
       // 서버 닉네임 가져오기
       const targetMember = await interaction.guild.members.fetch(userId).catch(() => null);
       const displayName = targetMember ? targetMember.displayName : targetUser.username;
 
       // 메시지 생성
-      let message = `📊 **${displayName}의 ${periodName} 출석 통계**\n\n`;
+      let message = `📊 **${displayName}의 ${periodName} 통계**\n\n`;
+      message += `⏱️ **참여 시간**: ${formatMinutes(totalMinutes)}`;
+      if (liveBonusMinutes > 0) {
+        message += ` (진행 중 +${liveBonusMinutes}분 포함)`;
+      }
+      message += `\n`;
       message += `📅 **출석일수**: ${attendanceDays}일\n`;
 
-      // 지정한 날짜인 경우: 해당 날짜의 출석 여부만 표시
+      // 지정한 날짜인 경우: 해당 날짜의 출석 여부 및 상세 정보 표시
       if (period === 'custom_date') {
-        const participation = await database.getUserParticipation(userId, dateInput, guildId);
+        const participation = await database.getUserParticipation(userId, dateInputTrimmed, guildId);
         const hasAttendance = participation.some(p => p.is_present === 1);
         
-        if (hasAttendance) {
-          message += `\n✅ **${dateInput} 출석 여부**: 출석함\n`;
+        // 해당 날짜의 총 참여 시간 계산
+        const dateTotalMinutes = participation.reduce((sum, p) => sum + (p.minutes_present || 0), 0);
+        
+        // 실시간 시간 추가 (오늘 날짜인 경우)
+        let dateLiveBonusMinutes = 0;
+        if (dateInputTrimmed === today) {
+          const nowDate = new Date();
+          const currentSlotInfo = getCurrentSlotInfo(nowDate);
+          const nowTimestamp = nowDate.getTime();
+          let liveStartTimestamp = null;
+          const activeSession = voiceTracker.activeUsers.get(userId);
+
+          if (activeSession && activeSession.guildId === guildId) {
+            const slotStartCandidate = activeSession.slotStartTime ?? activeSession.joinTime ?? null;
+            if (slotStartCandidate) {
+              liveStartTimestamp = Math.max(slotStartCandidate, currentSlotInfo.slotStart);
+            }
+          } else {
+            const activeDbSession = await database.getActiveSession(userId, guildId);
+            if (activeDbSession) {
+              liveStartTimestamp = Math.max(activeDbSession.join_time, currentSlotInfo.slotStart);
+            }
+          }
+
+          if (liveStartTimestamp !== null) {
+            const currentMinutes = Math.max(0, Math.floor((nowTimestamp - liveStartTimestamp) / 1000 / 60));
+            dateLiveBonusMinutes = Math.min(30, currentMinutes);
+          }
+        }
+        
+        const dateTotalWithLive = dateTotalMinutes + dateLiveBonusMinutes;
+        
+        if (hasAttendance || dateTotalWithLive > 0) {
+          message += `\n✅ **${dateInputTrimmed} 출석 여부**: ${hasAttendance ? '출석함' : '출석하지 않음'}\n`;
+          message += `⏱️ **참여 시간**: ${formatMinutes(dateTotalWithLive)}`;
+          if (dateLiveBonusMinutes > 0) {
+            message += ` (진행 중 +${dateLiveBonusMinutes}분 포함)`;
+          }
+          message += `\n`;
           
           // 출석한 슬롯 표시
           const attendedSlots = participation
@@ -181,7 +255,8 @@ module.exports = {
             message += `출석한 시간대: ${slotStrings.join(', ')}\n`;
           }
         } else {
-          message += `\n❌ **${dateInput} 출석 여부**: 출석하지 않음\n`;
+          message += `\n❌ **${dateInputTrimmed} 출석 여부**: 출석하지 않음\n`;
+          message += `⏱️ **참여 시간**: 0분\n`;
         }
       } else {
         // 다른 기간: 출석한 날짜 목록 표시
