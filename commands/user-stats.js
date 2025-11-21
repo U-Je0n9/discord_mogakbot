@@ -64,6 +64,7 @@ module.exports = {
 
       const today = getKoreaDate();
       let startDate, endDate, periodName;
+      let dateInputTrimmed = null;
 
       switch (period) {
         case 'all':
@@ -108,7 +109,7 @@ module.exports = {
             });
           }
           // 공백 제거 및 형식 검증
-          const dateInputTrimmed = dateInput.trim();
+          dateInputTrimmed = dateInput.trim();
           if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInputTrimmed)) {
             return interaction.editReply({
               content: `❌ 날짜 형식이 올바르지 않습니다.\n입력하신 값: "${dateInput}"\n올바른 형식: YYYY-MM-DD (예: 2025-11-19)`
