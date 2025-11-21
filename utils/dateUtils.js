@@ -88,8 +88,16 @@ function getCurrentSlotInfo(date = new Date()) {
   const minutesIntoSlot = parts.minute % 30;
   const secondsIntoSlot = parts.second;
   const millisecondsIntoSlot = date.getMilliseconds();
-  const elapsedMs = ((minutesIntoSlot * 60) + secondsIntoSlot) * 1000 + millisecondsIntoSlot;
-  const slotStart = date.getTime() - elapsedMs;
+  
+  // 한국 시간 기준으로 슬롯 시작 시간 계산
+  // 슬롯 시작 시간: 같은 날, 같은 시, 분은 30분 단위로 내림 (0 또는 30)
+  const slotStartMinute = Math.floor(parts.minute / 30) * 30;
+  
+  // 한국 시간 기준 슬롯 시작 시간을 UTC 타임스탬프로 변환
+  // Intl.DateTimeFormat을 사용하여 한국 시간대의 타임스탬프 계산
+  const koreaSlotStartString = `${parts.year}-${pad(parts.month)}-${pad(parts.day)}T${pad(parts.hour)}:${pad(slotStartMinute)}:00`;
+  const koreaSlotStartDate = new Date(koreaSlotStartString + '+09:00'); // KST = UTC+9
+  const slotStart = koreaSlotStartDate.getTime();
   const slotEnd = slotStart + SLOT_DURATION_MS;
 
   return {

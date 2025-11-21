@@ -27,19 +27,24 @@ class VoiceTracker {
     const now = Date.now();
     const baseDate = new Date(now);
     const koreaDate = getKoreaDate(baseDate);
-    const currentSlot = getCurrentTimeSlot(baseDate);
+    const currentSlotInfo = getCurrentSlotInfo(baseDate);
+    const currentSlot = currentSlotInfo.slotIndex;
     const koreaTime = getKoreaDateTime(baseDate);
 
     // 세션 시작
     await database.startSession(userId, guildId, channelId, now, koreaDate);
 
     // 현재 슬롯 추적 시작
+    // slotStartTime은 현재 슬롯에서의 실제 시작 시간 (입장 시간과 슬롯 시작 시간 중 큰 값)
+    // 슬롯 중간에 입장한 경우 입장 시간부터, 슬롯 시작 전에 입장한 경우는 없지만 방어적으로 처리
+    const slotStartTime = Math.max(now, currentSlotInfo.slotStart);
+
     this.activeUsers.set(userId, {
       guildId,
       channelId,
       joinTime: now,
       currentSlot,
-      slotStartTime: now
+      slotStartTime: slotStartTime
     });
 
     console.log(`[Voice Join] ${member.user.tag} (${userId}) joined channel ${channel.name} at slot ${currentSlot} (${koreaTime.toISOString()})`);
