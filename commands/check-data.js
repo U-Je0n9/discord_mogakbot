@@ -34,8 +34,10 @@ module.exports = {
       
       // 오늘의 모든 시간 슬롯 데이터
       const todayData = await database.getDateParticipation(today, guildId);
+      const activeUsers = Array.from(voiceTracker.activeUsers.entries())
+        .filter(([_, data]) => data.guildId === guildId);
       
-      if (todayData.length === 0) {
+      if (todayData.length === 0 && activeUsers.length === 0) {
         return interaction.editReply({
           content: `📅 **${today}**의 데이터가 없습니다.`
         });
@@ -47,7 +49,13 @@ module.exports = {
         if (!userMap.has(record.user_id)) {
           userMap.set(record.user_id, []);
         }
-        userMap.get(record.user_id).push(record);
+        userMap.get(record.user_id).push({ ...record });
+      }
+
+      for (const [userId] of activeUsers) {
+        if (!userMap.has(userId)) {
+          userMap.set(userId, []);
+        }
       }
 
       // 메시지 생성
@@ -91,14 +99,33 @@ module.exports = {
           message += `\n`;
           message += `총 레코드 수: ${records.length}개\n\n`;
           
-          // 슬롯별 상세 정보
+        // 슬롯별 상세 정보
           message += `슬롯별 상세:\n`;
-          records.sort((a, b) => a.time_slot - b.time_slot);
-          
-          for (const record of records) {
+        const effectiveRecords = [...records];
+        
+        if (liveBonusMinutes > 0) {
+          const currentSlotIndex = currentSlotInfo.slotIndex;
+          let slotRecord = effectiveRecords.find(r => r.time_slot === currentSlotIndex);
+          if (!slotRecord) {
+            slotRecord = {
+              time_slot: currentSlotIndex,
+              minutes_present: 0,
+              is_present: 0,
+              _live: true
+            };
+            effectiveRecords.push(slotRecord);
+          }
+          slotRecord.minutes_present = Math.min(30, (slotRecord.minutes_present || 0) + liveBonusMinutes);
+          slotRecord.is_present = slotRecord.minutes_present >= 20 ? 1 : 0;
+        }
+
+        effectiveRecords.sort((a, b) => a.time_slot - b.time_slot);
+        
+        for (const record of effectiveRecords) {
             const slotTime = require('../utils/dateUtils').timeSlotToTimeString(record.time_slot);
             const status = record.is_present === 1 ? '✅' : '⏳';
-            message += `${status} 슬롯 ${record.time_slot} (${slotTime}): ${record.minutes_present}분`;
+          const liveTag = record._live ? ' (진행 중)' : '';
+          message += `${status} 슬롯 ${record.time_slot} (${slotTime}): ${record.minutes_present}분${liveTag}`;
             if (record.minutes_present >= 20) {
               message += ` (출석 인정)`;
             }

@@ -145,12 +145,13 @@ module.exports = {
       // 통계 조회
       const stats = await database.getUserStats(userId, guildId, startDate, endDate);
       const attendanceDates = await database.getUserAttendanceDates(userId, guildId, startDate, endDate);
+      const attendanceDateSet = new Set(attendanceDates.map(d => d.date));
       
       // 디버깅: 조회 결과 확인
       console.log(`[사용자통계] 조회 결과: stats.attendance_days=${stats?.attendance_days}, attendanceDates.length=${attendanceDates?.length}, dates=${attendanceDates?.map(d => d.date).join(', ')}`);
 
       // getUserStats의 attendance_days를 우선 사용 (더 정확함)
-      const attendanceDays = stats?.attendance_days || attendanceDates?.length || 0;
+      let attendanceDays = stats?.attendance_days || attendanceDateSet.size;
       let totalMinutes = stats?.total_minutes || 0;
 
       // 현재 진행 중인 세션의 시간을 실시간으로 반영 (오늘 날짜가 포함된 경우)
@@ -180,6 +181,11 @@ module.exports = {
           const currentMinutes = Math.max(0, Math.floor((nowTimestamp - liveStartTimestamp) / 1000 / 60));
           liveBonusMinutes = Math.min(30, currentMinutes);
           totalMinutes += liveBonusMinutes;
+          if (liveBonusMinutes >= 20 && !attendanceDateSet.has(today)) {
+            attendanceDateSet.add(today);
+            attendanceDates.push({ date: today });
+            attendanceDays += 1;
+          }
         }
       }
 
@@ -199,7 +205,7 @@ module.exports = {
       // 지정한 날짜인 경우: 해당 날짜의 출석 여부 및 상세 정보 표시
       if (period === 'custom_date') {
         const participation = await database.getUserParticipation(userId, dateInputTrimmed, guildId);
-        const hasAttendance = participation.some(p => p.is_present === 1);
+        let hasAttendance = participation.some(p => p.is_present === 1);
         
         // 해당 날짜의 총 참여 시간 계산
         const dateTotalMinutes = participation.reduce((sum, p) => sum + (p.minutes_present || 0), 0);
@@ -228,6 +234,9 @@ module.exports = {
           if (liveStartTimestamp !== null) {
             const currentMinutes = Math.max(0, Math.floor((nowTimestamp - liveStartTimestamp) / 1000 / 60));
             dateLiveBonusMinutes = Math.min(30, currentMinutes);
+            if (dateLiveBonusMinutes >= 20) {
+              hasAttendance = true;
+            }
           }
         }
         

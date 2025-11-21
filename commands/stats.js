@@ -69,12 +69,14 @@ module.exports = {
       // 통계 조회
       const stats = await database.getUserStats(userId, guildId, startDate, endDate);
       const attendanceDates = await database.getUserAttendanceDates(userId, guildId, startDate, endDate);
+      const attendanceDateSet = new Set(attendanceDates.map(d => d.date));
 
       let totalMinutes = stats?.total_minutes || 0;
-      const attendanceDays = attendanceDates?.length || 0;
+      let attendanceDays = stats?.attendance_days || attendanceDateSet.size;
 
       // 현재 진행 중인 세션의 시간을 실시간으로 반영
       let liveBonusMinutes = 0;
+      let liveAttendanceToday = false;
       const periodIncludesToday = startDate <= today && endDate >= today;
 
       if (periodIncludesToday) {
@@ -97,7 +99,14 @@ module.exports = {
           const currentMinutes = Math.max(0, Math.floor((nowTimestamp - liveStartTimestamp) / 1000 / 60));
           liveBonusMinutes = Math.min(30, currentMinutes);
           totalMinutes += liveBonusMinutes;
+          liveAttendanceToday = liveBonusMinutes >= 20;
         }
+      }
+
+      if (periodIncludesToday && liveAttendanceToday && !attendanceDateSet.has(today)) {
+        attendanceDateSet.add(today);
+        attendanceDates.push({ date: today });
+        attendanceDays += 1;
       }
 
       // 메시지 생성

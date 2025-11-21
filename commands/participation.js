@@ -54,24 +54,31 @@ module.exports = {
       }
 
       // 사용자별로 그룹화 및 실시간 시간 계산
-      const userMap = new Map();
+      const userMap = new Map(); // userId -> [slotMinutes]
       const userTotalMinutes = new Map(); // 사용자별 총 시간 (실시간 포함)
       
       for (const record of participation) {
         if (!userMap.has(record.user_id)) {
-          userMap.set(record.user_id, new Array(48).fill(false)); // 48개 슬롯 (24시간 / 30분)
+          userMap.set(record.user_id, new Array(48).fill(0)); // 48개 슬롯 (24시간 / 30분)
           userTotalMinutes.set(record.user_id, 0);
         }
         const slots = userMap.get(record.user_id);
-        // 같은 슬롯에 여러 레코드가 있을 수 있으므로, 하나라도 is_present === 1이면 O
-        if (record.is_present === 1) {
-          slots[record.time_slot] = true;
-        }
-        userTotalMinutes.set(record.user_id, userTotalMinutes.get(record.user_id) + (record.minutes_present || 0));
+        const minutes = Math.min(30, record.minutes_present || 0);
+        slots[record.time_slot] = Math.min(30, (slots[record.time_slot] || 0) + minutes);
+        userTotalMinutes.set(record.user_id, userTotalMinutes.get(record.user_id) + minutes);
       }
 
       // 실시간 시간 추가 (오늘 날짜인 경우)
       if (isToday) {
+        // 현재 음성 채널에 있지만 아직 기록이 없는 사용자도 포함
+        for (const [activeUserId, userData] of voiceTracker.activeUsers.entries()) {
+          if (userData.guildId !== interaction.guild.id) continue;
+          if (!userMap.has(activeUserId)) {
+            userMap.set(activeUserId, new Array(48).fill(0));
+            userTotalMinutes.set(activeUserId, 0);
+          }
+        }
+
         for (const [userId] of userMap.entries()) {
           let liveBonusMinutes = 0;
           const activeSession = voiceTracker.activeUsers.get(userId);
@@ -92,6 +99,11 @@ module.exports = {
           }
           if (liveBonusMinutes > 0) {
             userTotalMinutes.set(userId, userTotalMinutes.get(userId) + liveBonusMinutes);
+            const slots = userMap.get(userId);
+            if (slots) {
+              const currentSlotIndex = currentSlotInfo.slotIndex;
+              slots[currentSlotIndex] = Math.min(30, (slots[currentSlotIndex] || 0) + liveBonusMinutes);
+            }
           }
         }
       }
@@ -108,7 +120,7 @@ module.exports = {
 
       const attendedLines = [];
       const pendingLines = [];
-      for (const [userId, slots] of userMap.entries()) {
+      for (const [userId, slotMinutes] of userMap.entries()) {
         // 서버 닉네임 가져오기
         const member = await interaction.guild.members.fetch(userId).catch(() => null);
         const displayName = member ? member.displayName : userId;
@@ -118,13 +130,13 @@ module.exports = {
         // 슬롯별 O/X 표시 (4개씩 묶어서 표시)
         const participationLine = [];
         for (let i = 0; i < 48; i += 4) {
-          const group = slots.slice(i, Math.min(i + 4, 48));
-          const groupStr = group.map(s => s ? 'O' : 'X').join('');
+          const group = slotMinutes.slice(i, Math.min(i + 4, 48));
+          const groupStr = group.map(minutes => minutes >= 20 ? 'O' : 'X').join('');
           participationLine.push(groupStr);
         }
 
         const line = `**${displayName}**: ${participationLine.join(' ')} (${formatMinutes(totalMinutes)})`;
-        const hasAttendance = slots.some(slot => slot);
+        const hasAttendance = slotMinutes.some(minutes => minutes >= 20);
         if (hasAttendance) {
           attendedLines.push(line);
         } else {
@@ -154,8 +166,8 @@ module.exports = {
       const totalUsers = userMap.size;
       const slotsPerUser = 48;
       let totalParticipated = 0;
-      for (const slots of userMap.values()) {
-        totalParticipated += slots.filter(s => s).length;
+      for (const slotMinutes of userMap.values()) {
+        totalParticipated += slotMinutes.filter(minutes => minutes >= 20).length;
       }
       const avgParticipation = totalUsers > 0 
         ? ((totalParticipated / (totalUsers * slotsPerUser)) * 100).toFixed(1) 
