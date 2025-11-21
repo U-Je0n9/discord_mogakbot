@@ -106,8 +106,8 @@ module.exports = {
       }
       message += `시간: ${timeLabels.join(' ')}... (30분 단위, 4시간마다 표시)\n\n`;
 
-      // 각 사용자별 참여 현황
-      let count = 0;
+      const attendedLines = [];
+      const pendingLines = [];
       for (const [userId, slots] of userMap.entries()) {
         // 서버 닉네임 가져오기
         const member = await interaction.guild.members.fetch(userId).catch(() => null);
@@ -123,15 +123,32 @@ module.exports = {
           participationLine.push(groupStr);
         }
 
-        message += `**${displayName}**: ${participationLine.join(' ')} (${formatMinutes(totalMinutes)})\n`;
-        count++;
-
-        // Discord 메시지 길이 제한 (2000자) 고려
-        if (message.length > 1800 || count > 20) {
-          message += `\n... (총 ${userMap.size}명, ${count}명 표시)`;
-          break;
+        const line = `**${displayName}**: ${participationLine.join(' ')} (${formatMinutes(totalMinutes)})`;
+        const hasAttendance = slots.some(slot => slot);
+        if (hasAttendance) {
+          attendedLines.push(line);
+        } else {
+          pendingLines.push(line);
         }
       }
+
+      const buildSection = (title, lines, maxLines = 15) => {
+        let section = `**${title} (${lines.length}명)**\n`;
+        if (lines.length === 0) {
+          section += `없음\n`;
+          return section;
+        }
+        const limited = lines.slice(0, maxLines);
+        section += limited.join('\n') + '\n';
+        if (lines.length > maxLines) {
+          section += `... (총 ${lines.length}명 중 ${maxLines}명 표시)\n`;
+        }
+        return section;
+      };
+
+      message += buildSection('✅ 출석 인정', attendedLines);
+      message += '\n';
+      message += buildSection('⏳ 출석 미인정', pendingLines);
 
       // 참여 통계
       const totalUsers = userMap.size;
